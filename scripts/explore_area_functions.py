@@ -10,8 +10,17 @@ g_range_ahead = 1 # anything to start
 rospy.init_node('explore_area_functions')
 rate = rospy.Rate(1)
 
+markers_total = 5
+markers_pose_map = [None] * markers_total
+markers_pose_next = [None] * markers_total
+markers_pose_origin = [None] * markers_total
+markers_letter = [None] * markers_total
+
+
+# Main loop
 while not rospy.is_shutdown():
   
+  # Find the first marker
   while not functions.marker_is_visible():
     g_range_ahead = functions.distance()
     print g_range_ahead
@@ -24,9 +33,15 @@ while not rospy.is_shutdown():
     
     rate.sleep()
 
-  print("Found the marker!")
-  print(functions.marker_decode())
+  # Decode the first message
+  temp_qr_msg = functions.marker_decode()
+  mark_no = temp_qr_msg[2]-1
+  print("Found the marker no.: {}!".format(mark_no+1))
+  markers_letter[mark_no] = temp_qr_msg[3]
+  markers_pose_origin[mark_no] = temp_qr_msg[0]
+  markers_pose_next[mark_no] = temp_qr_msg[1]
 
+  # Adjust the marker position in the middle of the screen
   print("Aiming...")
   counter = 1
   last_turn = False
@@ -37,27 +52,24 @@ while not rospy.is_shutdown():
         last_turn = False
         counter += 1
       functions.adjust(0.0, -0.2/counter)
-      print "Turn right"
+      print("Turn right")
     else:
       if not last_turn:
         last_turn = True
         counter += 1
       functions.adjust(0.0, 0.2/counter)
-      print "Turn left"
-  print("Success")
-  marker_pos_rel = functions.marker_pose_rel()
-  print("Markers rel pose: {}".format(marker_pos_rel))
-  pose = Pose()
-  pose.position.x = marker_pos_rel.position.z
-  pose.orientation.w = 1.0
-  print("publishing pose..")
-  functions.transform_publish(pose, '/temp_marker')
-  #print("getting pose..")
-  #marker_pose = functions.pose_current('/temp_marker')
-  #print("Markers pose in map: {}".format(marker_pose))
+      print("Turn left")
+    rate.sleep()
   
+  print("Success! Code is in the middle of the screen")
 
-
+  markers_pose_map[mark_no] = functions.transpose_pose_rel(functions.pose_current(), functions.marker_pose_rel())
+  print("Next marker in the radius: {}+-0.5".format(functions.dist2d(markers_pose_origin[mark_no],markers_pose_next[mark_no])))
+  
+  # # Go to the marker pose
+  # functions.movebase_goal_execute(markers_pose_map[mark_no])
+  # print("At the marker's position")
+  
   rate.sleep()
 
 # END ALL

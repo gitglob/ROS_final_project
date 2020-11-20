@@ -1,3 +1,5 @@
+import math
+import copy
 import rospy
 import tf
 import actionlib
@@ -148,6 +150,18 @@ def marker_decode():
         tmp[i] = word.split("=")[1]
     return [(float(tmp[0]),float(tmp[1])), (float(tmp[2]),float(tmp[3])), int(tmp[4]), tmp[5]]
 
+def transpose_pose_rel(parent_pose, child_pose):
+    """
+    Returns trasposed marker's pose related to the map.
+    Marker must be in the center of the screen.
+    """
+    pose = copy.copy(parent_pose)
+    angle = tf.transformations.euler_from_quaternion([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])[2]
+    pose.position.x += child_pose.position.z * math.cos(angle)
+    pose.position.y += child_pose.position.z * math.sin(angle)
+    return pose
+
+
 def marker_pose_rel():
     """
     Returns marker's pose related to the camera.
@@ -183,7 +197,7 @@ def transform_publish(tf_pose, child_frame, parent_frame = '/base_footprint'):
         try:
             (pose.position, pose.orientation) = tf_listener[0].lookupTransform(parent_frame, child_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            print("Punlishing the pose again...")
+            print("Publishing the pose again...")
             tf_broadcaster[0].sendTransform(translation, rotation, rospy.Time.now(), child_frame, parent_frame)
 
 
@@ -197,5 +211,8 @@ def movebase_goal_execute(goal_pose):
     pose = MoveBaseGoal()
     pose.target_pose.header.frame_id = "map"
     pose.target_pose.pose = goal_pose
-    movebase_client[0].send_goal(goal)
+    movebase_client[0].send_goal(pose)
     movebase_client[0].wait_for_result()
+
+def dist2d(pair1, pair2):
+    return math.sqrt(math.pow(pair1[0]-pair2[0],2)+math.pow(pair1[1]-pair2[1],2))
