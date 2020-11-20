@@ -1,4 +1,5 @@
 import math
+import numpy
 import copy
 import rospy
 import tf
@@ -215,4 +216,30 @@ def movebase_goal_execute(goal_pose):
     movebase_client[0].wait_for_result()
 
 def dist2d(pair1, pair2):
+    """
+    dist2d( (x1,y1), (x2,y2) )
+    Returns distance between two points
+    """
     return math.sqrt(math.pow(pair1[0]-pair2[0],2)+math.pow(pair1[1]-pair2[1],2))
+
+def estimate_org_pose(org_poses, map_poses):
+    """
+    estimate_org_pose(org_poses, map_poses)
+    Returns pose of origin coord system in map coord system.
+    """
+    A_arr = numpy.empty((0,4), float)
+    B_arr = numpy.empty((0,1), float)
+
+    for i in range(len(org_poses)):
+        if org_poses[i] != None and map_poses[i] != None:
+            A_arr = numpy.append(A_arr, numpy.array([[1, 0, org_poses[i][0], -org_poses[i][1]]]), axis=0)
+            B_arr = numpy.append(B_arr, numpy.array([[map_poses[i][0]]]), axis=0)
+            A_arr = numpy.append(A_arr, numpy.array([[0, 1, org_poses[i][1], org_poses[i][0]]]), axis=0)
+            B_arr = numpy.append(B_arr, numpy.array([[map_poses[i][1]]]), axis=0)
+    
+    X_arr = numpy.linalg.lstsq(A_arr, B_arr)[0]
+    angle = math.atan2(X_arr[3], X_arr[2])
+    orient = tf.transformations.quaternion_from_euler(0.0, 0.0, angle)
+    return Pose(Point(X_arr[0], X_arr[1], 0.0), orient), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
+
+
