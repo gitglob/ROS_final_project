@@ -2,12 +2,13 @@
 # BEGIN ALL
 import rospy
 import functions
+import numpy
 from geometry_msgs.msg import Pose
 
 def patrol():
   g_range_ahead = functions.distance()
   print("Laser distance: {}".format(g_range_ahead))
-  if g_range_ahead < 1.2:
+  if g_range_ahead[1] < 1.2:
     functions.move(0.0, 0.2)
     print("Turn")
   else:
@@ -15,8 +16,30 @@ def patrol():
     print("Drive")
   rospy.sleep(1)
 
+def patrol_movebase(pos_x, pos_y):
+  goal_position = functions.pose_current()
+  print("Robot position{} \n".format(goal_position))
+  goal_position.position.x = pos_x
+  goal_position.position.y = pos_y
+  print("Goal position{} \n".format(goal_position))
+  functions.movebase_goal_execute(goal_position)
+  rospy.sleep(5)
+
+def patrol_go_to_origin():
+  goal_position = functions.pose_current()
+  print("Robot position{}".format(goal_position))
+  goal_position.position.x = 0
+  goal_position.position.y = 0
+  print("Goal position{}".format(goal_position))
+  functions.movebase_goal_execute(goal_position)
+  rospy.sleep(1)
+
+
+
 rospy.on_shutdown(functions.stop) # stop() will be called on shutdown
 g_range_ahead = 1 # anything to start
+
+
 
 rospy.init_node('explore_area_functions')
 rate = rospy.Rate(1)
@@ -27,12 +50,33 @@ markers_2d_origin = [None] * markers_total
 markers_2d_next = [None] * markers_total
 markers_2d_map = [None] * markers_total
 markers_letter = [None] * markers_total
-
+# Patrol_new variables
+patrol_turn_counter = 0
+patrol_go_to_origin()
+do_360 = True
+position_index = 0
+first_marker_is_found = False
+second_marker_is_found = False
+patrol_positions_x = [-5, -5, 1, 4, 5, 5, 1, -5]
+patrol_positions_y = [0, 2, 2, 2, 0, -2, -2, -2]
+#=====================
 # MAIN LOOP
+#patrol_movebase(functions.pose_current())
 while not rospy.is_shutdown():
   # if there are no markers or the marker was already decoded and measured, then patrol
-  if not functions.marker_is_visible():
-    patrol()
+  if not functions.marker_is_visible() or not markers_letter[functions.marker_decode()[2]-1] == None:
+    if do_360:
+      functions.adjust(0, numpy.pi/4)
+      patrol_turn_counter += 1
+      if patrol_turn_counter == 8:
+        do_360 = False
+        patrol_turn_counter = 0
+    else:
+      patrol_movebase(patrol_positions_x[position_index], patrol_positions_y[position_index])
+      position_index +=1
+      if position_index == 7:
+        position_index = 0
+      do_360 = True
   elif markers_letter[functions.marker_decode()[2]-1] == None:
     # Decode new message
     temp_qr_msg = functions.marker_decode()
@@ -80,10 +124,9 @@ while not rospy.is_shutdown():
       print("Estimated origin pose:\n{0}\nwith 1+-error:{1}".format(*functions.estimate_org_pose(markers_2d_origin, markers_2d_map)))
 
     print("Next marker in the radius: {}+-0.5".format(functions.dist2d(markers_2d_origin[mark_no],markers_2d_next[mark_no])))
-  
   else:
-    patrol()
-
+    #patrol_new()
+    cipeczka=1
   # # Go to the marker pose
   # functions.movebase_goal_execute(markers_pose_map[mark_no])
   # print("At the marker's position")

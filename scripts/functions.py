@@ -14,7 +14,7 @@ sleep_time = 1
 vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
 scan_sub = [None]
-dist = [None]
+dist = 3*[None]
 
 marker_msg_sub = [None]
 marker_msg = [None]
@@ -26,9 +26,8 @@ marker_status_sub = [None]
 
 tf_listener = [None]
 tf_broadcaster = [None]
-
+vision_cone_angle = 90 #Must be divideable by 6
 movebase_client = [None]
-
 def scan_callback(msg, arg):
     tmp=[msg.ranges[0]]
     for i in range(1,21):
@@ -36,6 +35,29 @@ def scan_callback(msg, arg):
     for i in range(len(msg.ranges)-21,len(msg.ranges)):
         tmp.append(msg.ranges[i])
     arg[0] = min(tmp)
+
+
+def scan_callback_new(msg, arg):
+    """
+    Laser for left, center and right side of the vision cone.
+    """
+    tmp_left = []
+    tmp_center=[msg.ranges[0]]
+    tmp_right=[]
+    #Left side of the vision code
+    for i in range(len(msg.ranges)-(1+vision_cone_angle/2), len(msg.ranges)-(1+vision_cone_angle/6)):
+        tmp_left.append(msg.ranges[i])
+    #Center of the vision cone
+    for i in range(1,(1+vision_cone_angle/6)):
+        tmp_center.append(msg.ranges[i])
+    for i in range(len(msg.ranges)-(1+vision_cone_angle/6), len(msg.ranges)):
+        tmp_center.append(msg.ranges[i])
+    #Right side of the vision cone
+    for i in range(1+vision_cone_angle/6, 1+vision_cone_angle/2):
+        tmp_right.append(msg.ranges[i])
+    arg[0] = min(tmp_left)
+    arg[1] = min(tmp_center)
+    arg[2] = min(tmp_right)
 
 def marker_msg_callback(msg, arg):
     arg[0] = msg.data
@@ -53,6 +75,17 @@ def distance():
         rospy.sleep(sleep_time)
     #sub.unregister()
     return dist[0]
+
+def distance_new():
+    """
+    Returns the distance to the closest object for left, center and right side of the vision cone.
+    """
+    if scan_sub[0] == None:
+        scan_sub[0] = rospy.Subscriber('scan', LaserScan, scan_callback_new, dist)
+    while dist[0] == None:
+        rospy.sleep(sleep_time)
+    #sub.unregister()
+    return dist
 
 def move(vel_forward, vel_angular):
     """
@@ -241,5 +274,7 @@ def estimate_org_pose(org_poses, map_poses):
     angle = math.atan2(X_arr[3], X_arr[2])
     orient = tf.transformations.quaternion_from_euler(0.0, 0.0, angle)
     return Pose(Point(X_arr[0], X_arr[1], 0.0), orient), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
+
+
 
 
