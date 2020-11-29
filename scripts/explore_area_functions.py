@@ -16,6 +16,7 @@ def patrol():
     print("Drive")
   rospy.sleep(1)
 
+<<<<<<< HEAD
 def patrol_movebase(pos_x, pos_y):
   goal_position = functions.pose_current()
   print("Robot position{} \n".format(goal_position))
@@ -34,6 +35,25 @@ def patrol_go_to_origin():
   functions.movebase_goal_execute(goal_position)
   rospy.sleep(1)
 
+=======
+def go_to_marker(markers_pose_map):
+	if markers_letter.count(None) == 2:
+		markers_pose_map[mark_no].position.x - 7
+		markers_pose_map[mark_no].position.y - 7
+		functions.movebase_goal_execute(markers_pose_map[mark_no])
+		# Setting the current time for distance calculus
+		t0 = rospy.Time.now().to_sec()
+		current_angle = 0
+		relative_angle = 360
+		while(current_angle < relative_angle):
+			if not functions.marker_is_visible():
+		# Rotating 360 degrees
+				functions.adjust(0.0, -(360*3.14/360))
+				t1 = rospy.Time.now().to_sec()
+				current_angle = angular_speed*(t1-t0)
+			else:
+				current_angle = relative_angle
+>>>>>>> ebe7b25a6c2e7833adca8d2d220deba6c689ec2f
 
 
 rospy.on_shutdown(functions.stop) # stop() will be called on shutdown
@@ -120,6 +140,7 @@ while not rospy.is_shutdown():
     markers_2d_map[mark_no] = (markers_pose_map[mark_no].position.x, markers_pose_map[mark_no].position.y)
     
     # Estimate the pose of the marker's coordinate system in map's coordinates (needs at least 2 markers)
+
     if markers_letter.count(None) < 4:
       print("Estimated origin pose:\n{0}\nwith 1+-error:{1}".format(*functions.estimate_org_pose(markers_2d_origin, markers_2d_map)))
 
@@ -130,7 +151,7 @@ while not rospy.is_shutdown():
   # # Go to the marker pose
   # functions.movebase_goal_execute(markers_pose_map[mark_no])
   # print("At the marker's position")
-  
+  go_to_marker(markers_pose_map)
   rate.sleep()
 
 # END ALL
