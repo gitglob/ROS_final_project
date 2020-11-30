@@ -14,7 +14,8 @@ sleep_time = 1
 vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
 scan_sub = [None]
-dist = 3*[None]
+dist = [None]
+dist2 = 3*[None]
 
 marker_msg_sub = [None]
 marker_msg = [None]
@@ -81,11 +82,11 @@ def distance_new():
     Returns the distance to the closest object for left, center and right side of the vision cone.
     """
     if scan_sub[0] == None:
-        scan_sub[0] = rospy.Subscriber('scan', LaserScan, scan_callback_new, dist)
-    while dist[0] == None:
+        scan_sub[0] = rospy.Subscriber('scan', LaserScan, scan_callback_new, dist2)
+    while dist2[0] == None:
         rospy.sleep(sleep_time)
     #sub.unregister()
-    return dist
+    return dist2
 
 def move(vel_forward, vel_angular):
     """
@@ -164,8 +165,10 @@ def marker_is_visible():
     marker_msg[0] = None
     if marker_msg_sub[0] == None:
         marker_msg_sub[0] = rospy.Subscriber('/visp_auto_tracker/code_message', String, marker_msg_callback, marker_msg)
-    while marker_msg[0] == None:
+    timeout = 0
+    while marker_msg[0] == None and timeout < 100:
         rospy.sleep(sleep_time)
+        timeout += 1
     if marker_msg[0] == "":
         return False
     else:
@@ -270,11 +273,58 @@ def estimate_org_pose(org_poses, map_poses):
             A_arr = numpy.append(A_arr, numpy.array([[0, 1, org_poses[i][1], org_poses[i][0]]]), axis=0)
             B_arr = numpy.append(B_arr, numpy.array([[map_poses[i][1]]]), axis=0)
     
-    X_arr = numpy.linalg.lstsq(A_arr, B_arr)[0]
+    X_arr = numpy.linalg.lstsq(A_arr, B_arr)[0].tolist()
     angle = math.atan2(X_arr[3], X_arr[2])
-    orient = tf.transformations.quaternion_from_euler(0.0, 0.0, angle)
-    return Pose(Point(X_arr[0], X_arr[1], 0.0), orient), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
+    #orient = tf.transformations.quaternion_from_euler(0.0, 0.0, angle)
+    #return Pose(Point(X_arr[0], X_arr[1], 0.0), orient), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
+    return (X_arr[0], X_arr[1], angle), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
 
+def go_to_marker(marker_pose, angle):
+    goal_pose = copy.copy(marker_pose)
+    goal_pose.position.x -= 10*math.cos(math.radians(angle))
+    goal_pose.position.y -= 10*math.sin(math.radians(angle))
+    movebase_goal_execute(goal_pose)
 
+def patrol_movebase(pos_x = 0, pos_y = 0):
+  goal_position = pose_current()
+  print("Robot position:\n{}".format(goal_position))
+  goal_position.position.x = pos_x
+  goal_position.position.y = pos_y
+  print("Goal position:\n{}".format(goal_position))
+  movebase_goal_execute(goal_position)
 
+def aim():
+    counter = 1
+    last_turn = False
+    x_error = 1
+    timeout = 0
+    while x_error > 0.015 and counter < 4:
+        while marker_is_visible() and x_error > 0.015 and counter < 4:
+            if marker_pose_rel().position.x > 0:
+                if last_turn:
+                    last_turn = False
+                    counter += 1
+                adjust(0.0, -0.1/counter)
+                print("Aim: adjusting right")
+            else:
+                if not last_turn:
+                    last_turn = True
+                    counter += 1
+                adjust(0.0, 0.1/counter)
+                print("Aim: adjusting left")
+            rospy.sleep(1)
+            if marker_is_visible():
+                x_error = abs(marker_pose_rel().position.x)
+        if not marker_is_visible():
+            timeout += 1
+            if timeout > 10:
+                counter = 4
+    
+    print("Aim: Success! Code is in the middle of the screen")
 
+def org_to_map(marker_2d, org_trans):
+    """
+    org_to_map(marker_2d, org_trans)
+    Returns transformed pose from original coords to map coords.
+    """
+    return Pose(Point(org_trans[0] + marker_2d[0]*math.cos(org_trans[2]) - marker_2d[1]*math.sin(org_trans[2]), org_trans[1] + marker_2d[0]*math.sin(org_trans[2]) + marker_2d[1]*math.cos(org_trans[2]), 0.0),Quaternion(0.0, 0.0, 0.0, 1.0))
