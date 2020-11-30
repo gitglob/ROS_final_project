@@ -16,7 +16,6 @@ def patrol():
     print("Drive")
   rospy.sleep(1)
 
-<<<<<<< HEAD
 def patrol_movebase(pos_x, pos_y):
   goal_position = functions.pose_current()
   print("Robot position{} \n".format(goal_position))
@@ -35,20 +34,19 @@ def patrol_go_to_origin():
   functions.movebase_goal_execute(goal_position)
   rospy.sleep(1)
 
-=======
 def rotate():
-# Setting the current time for distance calculus
-t0 = rospy.Time.now().to_sec()
-current_angle = 0
-relative_angle = 360
-	while(current_angle < relative_angle):
-		if not functions.marker_is_visible():
-		# Rotating 360 degrees
-			functions.adjust(0.0, -(360*3.14/360))
-			t1 = rospy.Time.now().to_sec()
-			current_angle = -(360*3.14/360)*(t1-t0)
-		else:
-			current_angle = relative_angle
+  # Setting the current time for distance calculus
+  t0 = rospy.Time.now().to_sec()
+  current_angle = 0
+  relative_angle = 360
+  while(current_angle < relative_angle):
+    if not functions.marker_is_visible():
+    # Rotating 360 degrees
+      functions.adjust(0.0, -(360*3.14/360))
+      t1 = rospy.Time.now().to_sec()
+      current_angle = -(360*3.14/360)*(t1-t0)
+    else:
+      current_angle = relative_angle
 
 
 
@@ -61,18 +59,14 @@ def go_to_marker(markers_pose_map):
 		t_0 = rospy.Time.now().to_sec()
 		distance_to_travel = 3
 		current_distance = 0
-		for(current_distance < distance_to_travel):
-			if not functions.marker_is_visible()):
+		while current_distance < distance_to_travel:
+			if not functions.marker_is_visible():
 				t_1 = rospy.Time.now().to_sec()
 				current_distance = 0.4*(t_1 - t_0)
 				functions.move(0.4, 0.0)
 				rotate()
 			else:
 				current_distance = distance_to_travel
-
-
->>>>>>> ebe7b25a6c2e7833adca8d2d220deba6c689ec2f
-
 
 rospy.on_shutdown(functions.stop) # stop() will be called on shutdown
 g_range_ahead = 1 # anything to start
@@ -165,11 +159,10 @@ while not rospy.is_shutdown():
     print("Next marker in the radius: {}+-0.5".format(functions.dist2d(markers_2d_origin[mark_no],markers_2d_next[mark_no])))
   else:
     #patrol_new()
-    cipeczka=1
   # # Go to the marker pose
   # functions.movebase_goal_execute(markers_pose_map[mark_no])
   # print("At the marker's position")
-  go_to_marker(markers_pose_map)
+    go_to_marker(markers_pose_map)
   rate.sleep()
 
 # END ALL
