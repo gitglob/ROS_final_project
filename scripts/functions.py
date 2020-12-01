@@ -169,7 +169,7 @@ def marker_is_visible():
     while marker_msg[0] == None and timeout < 100:
         rospy.sleep(sleep_time)
         timeout += 1
-    if marker_msg[0] == "":
+    if marker_msg[0] == "" or marker_msg[0] == None:
         return False
     else:
         return True
@@ -192,7 +192,7 @@ def transpose_pose_rel(parent_pose, child_pose):
     Returns trasposed marker's pose related to the map.
     Marker must be in the center of the screen.
     """
-    pose = copy.copy(parent_pose)
+    pose = copy.deepcopy(parent_pose)
     angle = tf.transformations.euler_from_quaternion([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])[2]
     pose.position.x += child_pose.position.z * math.cos(angle)
     pose.position.y += child_pose.position.z * math.sin(angle)
@@ -247,9 +247,14 @@ def movebase_goal_execute(goal_pose):
     movebase_client[0].wait_for_server()
     pose = MoveBaseGoal()
     pose.target_pose.header.frame_id = "map"
+    pose.target_pose.header.stamp = rospy.Time.now()
     pose.target_pose.pose = goal_pose
+    movebase_client[0].cancel_all_goals()
+    movebase_client[0].stop_tracking_goal()
     movebase_client[0].send_goal(pose)
+    print("[Movebase] New goal sent.")
     movebase_client[0].wait_for_result()
+    print("[Movebase] Finished executing goal.")
 
 def dist2d(pair1, pair2):
     """
@@ -273,25 +278,22 @@ def estimate_org_pose(org_poses, map_poses):
             A_arr = numpy.append(A_arr, numpy.array([[0, 1, org_poses[i][1], org_poses[i][0]]]), axis=0)
             B_arr = numpy.append(B_arr, numpy.array([[map_poses[i][1]]]), axis=0)
     
-    X_arr = numpy.linalg.lstsq(A_arr, B_arr)[0].tolist()
+    X_arr = numpy.linalg.lstsq(A_arr, B_arr)[0]
     angle = math.atan2(X_arr[3], X_arr[2])
-    #orient = tf.transformations.quaternion_from_euler(0.0, 0.0, angle)
-    #return Pose(Point(X_arr[0], X_arr[1], 0.0), orient), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
-    return (X_arr[0], X_arr[1], angle), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
+    return (X_arr[0][0], X_arr[1][0], angle), math.pow(X_arr[2],2)+math.pow(X_arr[3],2)
 
 def go_to_marker(marker_pose, angle):
-    goal_pose = copy.copy(marker_pose)
-    goal_pose.position.x -= 10*math.cos(math.radians(angle))
-    goal_pose.position.y -= 10*math.sin(math.radians(angle))
+    goal_pose = copy.deepcopy(marker_pose)
+    goal_pose.position.x -= 1.7*math.cos(math.radians(angle))
+    goal_pose.position.y -= 1.7*math.sin(math.radians(angle))
+    print("New position:\n{}".format(goal_pose.position))
     movebase_goal_execute(goal_pose)
 
 def patrol_movebase(pos_x = 0, pos_y = 0):
-  goal_position = pose_current()
-  print("Robot position:\n{}".format(goal_position))
-  goal_position.position.x = pos_x
-  goal_position.position.y = pos_y
-  print("Goal position:\n{}".format(goal_position))
-  movebase_goal_execute(goal_position)
+    goal_position = pose_current()
+    goal_position.position.x = pos_x
+    goal_position.position.y = pos_y
+    movebase_goal_execute(goal_position)
 
 def aim():
     counter = 1
@@ -305,13 +307,13 @@ def aim():
                     last_turn = False
                     counter += 1
                 adjust(0.0, -0.1/counter)
-                print("Aim: adjusting right")
+                print("[Aim] Adjusting right")
             else:
                 if not last_turn:
                     last_turn = True
                     counter += 1
                 adjust(0.0, 0.1/counter)
-                print("Aim: adjusting left")
+                print("[Aim] Adjusting left")
             rospy.sleep(1)
             if marker_is_visible():
                 x_error = abs(marker_pose_rel().position.x)
@@ -320,11 +322,14 @@ def aim():
             if timeout > 10:
                 counter = 4
     
-    print("Aim: Success! Code is in the middle of the screen")
+    print("[Aim] Success! Code is in the middle of the screen")
 
 def org_to_map(marker_2d, org_trans):
     """
     org_to_map(marker_2d, org_trans)
     Returns transformed pose from original coords to map coords.
     """
-    return Pose(Point(org_trans[0] + marker_2d[0]*math.cos(org_trans[2]) - marker_2d[1]*math.sin(org_trans[2]), org_trans[1] + marker_2d[0]*math.sin(org_trans[2]) + marker_2d[1]*math.cos(org_trans[2]), 0.0),Quaternion(0.0, 0.0, 0.0, 1.0))
+    pose = pose_current()
+    pose.position.x = org_trans[0] + marker_2d[0]*math.cos(org_trans[2]) - marker_2d[1]*math.sin(org_trans[2])
+    pose.position.y = org_trans[1] + marker_2d[0]*math.sin(org_trans[2]) + marker_2d[1]*math.cos(org_trans[2])
+    return pose

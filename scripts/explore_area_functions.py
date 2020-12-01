@@ -25,19 +25,6 @@ patrol.position_index = 0
 patrol.patrol_positions_x = [-5, -5, 1, 4, 5, 5, 1, -5]
 patrol.patrol_positions_y = [0, 2, 2, 2, 0, -2, -2, -2]
 
-# def rotate():
-#   # Setting the current time for distance calculus
-#   t0 = rospy.Time.now()
-#   current_angle = 0
-#   relative_angle = 360
-#   while(current_angle < relative_angle):
-#     if not functions.marker_is_visible():
-#     # Rotating 360 degrees
-#       functions.adjust(0.0, -3.14)
-#       t1 = rospy.Time.now()
-#       current_angle = -3.14*(t1-t0).to_sec()
-#     else:
-#       current_angle = relative_angle
 def rotate():
   if rotate.do_360:
     functions.adjust(0, numpy.pi/6)
@@ -98,10 +85,17 @@ while not rospy.is_shutdown() and markers_letter.count(None) > 0:
         # Save information only if it is a new marker
         if markers_letter[mark_no] == None:
           is_forced_to_patrol = False
-          #next_marker = mark_no + 1
-          next_marker = mark_no
-          #if next_marker > 4:
-          #  next_marker = next_marker - markers_total
+          buf = mark_no + 1
+          if buf > 4:
+            buf -= markers_total
+          while markers_letter[buf] != None:
+            buf += 1
+            if buf > 4:
+              buf -= markers_total
+          next_marker = buf - 1
+          if next_marker < 0:
+            next_marker += markers_total
+
           markers_letter[mark_no] = temp_qr_msg[3]
           markers_2d_origin[mark_no] = temp_qr_msg[0]
           markers_2d_next[mark_no] = temp_qr_msg[1]
@@ -109,7 +103,7 @@ while not rospy.is_shutdown() and markers_letter.count(None) > 0:
           # Measure the marker's position in map's cooridnates
           markers_pose_map[mark_no] = functions.transpose_pose_rel(functions.pose_current(), functions.marker_pose_rel())
           markers_2d_map[mark_no] = (markers_pose_map[mark_no].position.x, markers_pose_map[mark_no].position.y)
-          print("Next marker in the radius: {}+-0.5".format(functions.dist2d(markers_2d_origin[mark_no],markers_2d_next[mark_no])))
+          #print("Next marker in the radius: {}+-0.5".format(functions.dist2d(markers_2d_origin[mark_no],markers_2d_next[mark_no])))
         else:
           print("Marker {} was already decoded.".format(mark_no+1))
       else:
@@ -123,41 +117,62 @@ while not rospy.is_shutdown() and markers_letter.count(None) > 0:
     if org_trans == None or last_err > new_err:
       org_trans = new_trans
       last_err = new_err
-    print("Estimated origin transposition (x,y,angle):\n{0}\nwith error:{1}".format(org_trans, last_err))
+    print("Estimated origin transposition (x, y, angle):\n{0}\nwith error: {1}".format(org_trans, last_err))
 
     target_marker = functions.org_to_map(markers_2d_next[next_marker], org_trans)
 
+    if functions.marker_is_visible():
+      if markers_letter[functions.marker_decode()[2]-1] == None:
+        is_visible = True
+      else:
+        is_visible = False
+    else:
+      is_visible = False
+
     attempts = 0
-    is_visible = False
+    print("Scanning for the marker...")
     while not is_visible and attempts < 8:
       print("Attempt: {}".format(attempts))
       functions.go_to_marker(target_marker, (attempts+1)*45)
+      rotate.do_360 = True
       rotate.rotate_turn_counter = 0
-      while rotate() and not is_visible:
+      while not is_visible and rotate():
         if functions.marker_is_visible():
-          if markers_letter[functions.marker_decode()[2]-1] == next_marker:
+          print("Seeing marker {0}, next marker {1}".format(functions.marker_decode()[2], next_marker+2))
+          if markers_letter[functions.marker_decode()[2]-1] == None:
             is_visible = True
+            print("Found new marker!")
       attempts += 1
 
     
     if functions.marker_is_visible():
-      if markers_letter[functions.marker_decode()[2]-1] == next_marker:
+      if markers_letter[functions.marker_decode()[2]-1] == None:
         temp_qr_msg = functions.marker_decode()
         print("Found new marker no.: {}!".format(temp_qr_msg[2]))
 
-        # Adjust the marker position to the middle of the screen
-        print("Aiming...")
-        functions.aim()
+        if markers_letter.count(None) > 1:
+          # Adjust the marker position to the middle of the screen
+          print("Aiming...")
+          functions.aim()
 
         # Get information from the QR code
         temp_qr_msg = functions.marker_decode()
         mark_no = temp_qr_msg[2]-1
         if markers_letter[mark_no] == None:
           is_forced_to_patrol = False
-          #next_marker = mark_no + 1
-          next_marker = mark_no
-          #if next_marker > 4:
-          #  next_marker = next_marker - markers_total
+
+          if markers_letter.count(None) > 1:
+            buf = mark_no + 1
+            if buf > 4:
+              buf -= markers_total
+            while markers_letter[buf] != None:
+              buf += 1
+              if buf > 4:
+                buf -= markers_total
+            next_marker = buf - 1
+            if next_marker < 0:
+              next_marker += markers_total
+          
           markers_letter[mark_no] = temp_qr_msg[3]
           markers_2d_origin[mark_no] = temp_qr_msg[0]
           markers_2d_next[mark_no] = temp_qr_msg[1]
@@ -165,7 +180,6 @@ while not rospy.is_shutdown() and markers_letter.count(None) > 0:
           # Measure the marker's position in map's cooridnates
           markers_pose_map[mark_no] = functions.transpose_pose_rel(functions.pose_current(), functions.marker_pose_rel())
           markers_2d_map[mark_no] = (markers_pose_map[mark_no].position.x, markers_pose_map[mark_no].position.y)
-          print("Next marker in the radius: {}+-0.5".format(functions.dist2d(markers_2d_origin[mark_no],markers_2d_next[mark_no])))
         else:
           print("Marker {} was already decoded.".format(mark_no+1))
     else:
